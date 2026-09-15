@@ -1,74 +1,84 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import projects from "@/data/projects.json";
 import nbtData from "@/data/nbt-69-gen1.json";
+import Link from "next/link";
 import {
   Search,
-  CheckSquare,
-  Square,
   Printer,
-  UserCheck,
-  X,
-  Filter,
   ArrowLeft,
+  X,
+  UserCheck,
+  ShieldCheck,
+  CheckCircle2,
+  Building2,
+  Calendar,
+  GraduationCap,
+  Award,
+  Check,
+  User,
+  Info,
 } from "lucide-react";
-import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 export default function ProjectDetail({ params }: { params: { id: string } }) {
   const projectId = params.id;
-
-  // 1. ดึงข้อมูลโครงการและรายชื่อ
   const projectData = projects.find((p) => p.id === projectId);
   const recipients = projectId === "nbt-69-gen1" ? nbtData : [];
 
-  // 2. States สำหรับการค้นหา และการเลือก
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDept, setSelectedDept] = useState("all");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
-  // 3. ดึงรายชื่อสังกัด/หน่วยงานทั้งหมดมาทำ Filter
-  const departments = useMemo(() => {
-    const depts = new Set(recipients.map((r) => r.department));
-    return ["all", ...Array.from(depts)];
-  }, [recipients]);
+  const searchRef = useRef<HTMLDivElement>(null);
 
-  // 4. กรองรายชื่อตามคำค้นหา (Search) และหน่วยงาน (Department)
+  // กรองรายชื่อเมื่อพิมพ์ค้นหา
   const filteredRecipients = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+
     return recipients.filter((r) => {
       const fullName = `${r.prefix}${r.firstName} ${r.lastName}`;
-      const matchesSearch =
+      return (
         fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.department.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesDept =
-        selectedDept === "all" || r.department === selectedDept;
-
-      return matchesSearch && matchesDept;
+        r.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.department.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     });
-  }, [recipients, searchTerm, selectedDept]);
+  }, [recipients, searchTerm]);
+
+  // ปิด Dropdown เมื่อคลิกนอกกล่อง Search
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
+        setIsFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!projectData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
-            ไม่พบข้อมูลโครงการ
-          </h2>
-          <Link
-            href="/"
-            className="mt-4 inline-block text-sm text-blue-600 hover:underline"
-          >
-            ← กลับหน้าหลัก
-          </Link>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <h2 className="text-lg font-semibold">ไม่พบข้อมูลโครงการ</h2>
+          <Button asChild variant="link">
+            <Link href="/">← กลับหน้าหลัก</Link>
+          </Button>
         </div>
       </div>
     );
   }
 
-  // ฟังก์ชั่นเลือก/ยกเลิก เลือกรายชื่อคนนั้นๆ
   const toggleSelect = (fullNameId: string) => {
     setSelectedUsers((prev) =>
       prev.includes(fullNameId)
@@ -77,34 +87,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
     );
   };
 
-  // ฟังก์ชั่นเลือกทั้งหมด (เฉพาะรายการที่แสดงอยู่จากการกรอง)
-  const handleSelectFilteredAll = () => {
-    const filteredIds = filteredRecipients.map(
-      (r) => `${r.firstName}-${r.lastName}`,
-    );
-    const isAllFilteredSelected = filteredIds.every((id) =>
-      selectedUsers.includes(id),
-    );
-
-    if (isAllFilteredSelected) {
-      // ถ้านำออกทั้งหมดเฉพาะที่กรองอยู่
-      setSelectedUsers((prev) =>
-        prev.filter((id) => !filteredIds.includes(id)),
-      );
-    } else {
-      // เพิ่มเฉพาะรายการที่กรองอยู่เข้า selectedUsers
-      setSelectedUsers((prev) =>
-        Array.from(new Set([...prev, ...filteredIds])),
-      );
-    }
-  };
-
-  // ฟังก์ชั่นส่งไปพิมพ์ PDF
   const handlePrintSelected = async () => {
-    if (selectedUsers.length === 0) {
-      alert("กรุณาเลือกรายชื่อผู้ผ่านการอบรมอย่างน้อย 1 คน");
-      return;
-    }
+    if (selectedUsers.length === 0)
+      return alert("กรุณาเลือกรายชื่ออย่างน้อย 1 คน");
 
     setIsGenerating(true);
     const dataToPrint = recipients.filter((r) =>
@@ -121,10 +106,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         }),
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "สร้าง PDF ไม่สำเร็จ");
-      }
+      if (!response.ok) throw new Error("สร้าง PDF ไม่สำเร็จ");
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -143,54 +125,80 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 p-4 md:p-8 transition-colors">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen text-foreground selection:bg-primary selection:text-primary-foreground relative">
+      {/* Background Decorative Blur */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-slate-200/50 via-transparent to-transparent dark:from-slate-800/30 pointer-events-none blur-3xl -z-10" />
+
+      {/* Sticky Navigation Bar */}
+      <div className="sticky top-16 z-30 bg-background/80 backdrop-blur-md border-b border-border/40 py-2.5 px-6 ">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between ">
+          <Link
+            href="/"
+            className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-0.5" />
+            กลับไปหน้ารวมโครงการ
+          </Link>
+          <span className="text-xs text-muted-foreground hidden sm:inline-block">
+            {projectData.name}
+          </span>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-8 md:py-12 space-y-8">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-          <div>
-            <Link
-              href="/"
-              className="inline-flex items-center text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-2 transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> กลับไปหน้ารวมโครงการ
-            </Link>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {projectData.name}
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              ประจำปีงบประมาณ พ.ศ. 2569 • ระยะเวลา {projectData.date}
-            </p>
+        <header className="space-y-4 border-b border-border/60 pb-8">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>หลักสูตรฝึกอบรมระดับผู้บริหาร</span>
           </div>
 
-          {/* Action Button */}
-          <button
-            onClick={handlePrintSelected}
-            disabled={selectedUsers.length === 0 || isGenerating}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-50 dark:hover:bg-slate-200 text-slate-50 dark:text-slate-900 font-medium text-sm shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Printer className="w-4 h-4" />
-            {isGenerating
-              ? "กำลังสร้าง PDF..."
-              : `พิมพ์ใบประกาศ (${selectedUsers.length} รายการ)`}
-          </button>
-        </div>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-2 max-w-3xl">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent py-1.5 leading-snug">
+                {projectData.name}
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+                {projectData.description ||
+                  "โครงการพัฒนาศักยภาพบุคลากรภาครัฐ เพื่อเพิ่มประสิทธิภาพการปฏิบัติงานและการบริหารจัดการภาครัฐแนวใหม่"}
+              </p>
+            </div>
 
-        {/* Selected Badges Area (แสดงชิปรายการที่เลือก) */}
+            {/* Print Button Header Action */}
+            <div className="shrink-0">
+              <Button
+                onClick={handlePrintSelected}
+                disabled={selectedUsers.length === 0 || isGenerating}
+                size="lg"
+                className="shadow-sm w-full md:w-auto"
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                {isGenerating
+                  ? "กำลังสร้าง PDF..."
+                  : `พิมพ์ใบประกาศ (${selectedUsers.length})`}
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Selected Badges Bar (แสดงรายชื่อที่เลือกไว้) */}
         {selectedUsers.length > 0 && (
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2 shadow-sm">
+          <div className="p-4 rounded-2xl border bg-card/90 backdrop-blur-sm text-card-foreground space-y-3 shadow-sm animate-in fade-in-50 duration-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                <UserCheck className="w-4 h-4 text-primary" />
                 รายชื่อที่เลือกไว้ ({selectedUsers.length})
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 text-xs text-destructive hover:bg-transparent"
                 onClick={() => setSelectedUsers([])}
-                className="text-xs text-rose-600 hover:underline font-medium"
               >
-                ล้างรายการทั้งหมด
-              </button>
+                ล้างทั้งหมด
+              </Button>
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pt-1">
+            <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pt-1">
               {recipients
                 .filter((r) =>
                   selectedUsers.includes(`${r.firstName}-${r.lastName}`),
@@ -198,151 +206,217 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                 .map((r) => {
                   const id = `${r.firstName}-${r.lastName}`;
                   return (
-                    <span
+                    <Badge
                       key={id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                      variant="secondary"
+                      className="gap-1.5 font-normal py-1 px-3 rounded-lg"
                     >
                       {r.prefix}
                       {r.firstName} {r.lastName}
-                      <button
+                      <X
+                        className="w-3.5 h-3.5 cursor-pointer hover:text-destructive transition-colors ml-1"
                         onClick={() => toggleSelect(id)}
-                        className="hover:text-rose-500 transition-colors ml-0.5"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
+                      />
+                    </Badge>
                   );
                 })}
             </div>
           </div>
         )}
 
-        {/* Search & Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="พิมพ์ค้นหาชื่อ, นามสกุล, ตำแหน่ง หรือสังกัด..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600 transition-all shadow-sm"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+        {/* SEARCH BAR SECTION */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="font-medium flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-primary" />
+              ตรวจสอบสิทธิ์และเลือกรายชื่อผู้รับใบประกาศ
+            </span>
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-500 font-medium">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              คุ้มครองข้อมูลส่วนบุคคล (PDPA Compliant)
+            </span>
           </div>
 
-          {/* Department Filter */}
-          <div className="relative w-full sm:w-64">
-            <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full pl-10 pr-8 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600 transition-all appearance-none cursor-pointer shadow-sm"
+          <div ref={searchRef} className="relative max-w-full">
+            {/* Input Container */}
+            <div
+              className={`relative flex items-center rounded-2xl border bg-card transition-all duration-200 ${
+                isFocused && searchTerm
+                  ? "rounded-b-none border-border shadow-lg ring-1 ring-ring"
+                  : isFocused
+                    ? "border-ring ring-2 ring-ring/20 shadow-md"
+                    : "border-input hover:border-foreground/30 shadow-sm"
+              }`}
             >
-              <option value="all">ทุกสังกัด / หน่วยงาน</option>
-              {departments
-                .filter((d) => d !== "all")
-                .map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </div>
+              <Search className="absolute left-4 w-5 h-5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="พิมพ์ชื่อ นามสกุล หรือหน่วยงานเพื่อค้นหา..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                className="pl-12 pr-10 py-6 text-base border-none bg-transparent shadow-none focus-visible:ring-0 rounded-2xl"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-4 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
 
-        {/* Recipients List Table */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-medium text-xs">
-                  <th className="py-3 px-4 w-12 text-center">
-                    <button
-                      onClick={handleSelectFilteredAll}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                      title="เลือกทั้งหมดเฉพาะผลการค้นหานี้"
-                    >
-                      {filteredRecipients.length > 0 &&
-                      filteredRecipients.every((r) =>
-                        selectedUsers.includes(`${r.firstName}-${r.lastName}`),
-                      ) ? (
-                        <CheckSquare className="w-4 h-4 text-slate-900 dark:text-slate-100" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
-                    </button>
-                  </th>
-                  <th className="py-3 px-4">ชื่อ - นามสกุล</th>
-                  <th className="py-3 px-4">ตำแหน่ง</th>
-                  <th className="py-3 px-4">สังกัด / หน่วยงาน</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {/* Dropdown Results Card */}
+            {isFocused && searchTerm.trim() !== "" && (
+              <div className="absolute left-0 right-0 top-full bg-card/95 backdrop-blur-md border border-t-0 border-border rounded-b-2xl shadow-xl z-50 overflow-hidden divide-y divide-border/60 max-h-80 overflow-y-auto">
                 {filteredRecipients.length > 0 ? (
                   filteredRecipients.map((r, idx) => {
                     const id = `${r.firstName}-${r.lastName}`;
                     const isSelected = selectedUsers.includes(id);
 
                     return (
-                      <tr
+                      <div
                         key={idx}
                         onClick={() => toggleSelect(id)}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected
-                            ? "bg-slate-100/70 dark:bg-slate-800/50"
-                            : "hover:bg-slate-50/80 dark:hover:bg-slate-800/20"
+                        className={`p-3.5 px-4 flex items-center justify-between cursor-pointer transition-colors ${
+                          isSelected ? "bg-primary/5" : "hover:bg-accent/60"
                         }`}
                       >
-                        <td className="py-3 px-4 text-center">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            <User className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {r.prefix}
+                              {r.firstName} {r.lastName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {r.position} • {r.department}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
                           {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-slate-900 dark:text-slate-100 mx-auto" />
+                            <Badge variant="default" className="gap-1 text-xs">
+                              <Check className="w-3 h-3" /> เลือกแล้ว
+                            </Badge>
                           ) : (
-                            <Square className="w-4 h-4 text-slate-300 dark:text-slate-700 mx-auto" />
+                            <span className="text-xs text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity">
+                              คลิกเพื่อเลือก
+                            </span>
                           )}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          {r.prefix}
-                          {r.firstName} {r.lastName}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {r.position}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {r.department}
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
                   })
                 ) : (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="py-12 text-center text-slate-400"
-                    >
-                      ไม่พบรายชื่อที่ตรงกับคำค้นหา
-                    </td>
-                  </tr>
+                  <div className="p-6 text-center text-xs text-muted-foreground">
+                    ไม่พบรายชื่อที่ตรงกับคำค้นหา "{searchTerm}"
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* PROJECT DETAILS & SIDEBAR SECTION */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          {/* Main Info Box */}
+          <div className="md:col-span-2 space-y-6">
+            {/* Overview Card */}
+            <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
+              <h3 className="font-semibold text-base flex items-center gap-2 text-foreground">
+                <Info className="w-4 h-4 text-primary" />
+                รายละเอียดโครงการสังเขป
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                หลักสูตรนี้จัดขึ้นโดยสถาบันดำรงราชานุภาพ กระทรวงมหาดไทย
+                มีวัตถุประสงค์เพื่อพัฒนาความรู้ ทักษะ
+                และสมรรถนะที่จำเป็นสำหรับนักบริหารงานมหาดไทย
+                มุ่งเน้นการยกระดับการบริหารจัดการภาครัฐตามหลักธรรมมาภิบาล
+                และการประยุกต์ใช้เทคโนโลยีดิจิทัลในการบริการประชาชน
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      ระยะเวลาการฝึกอบรม
+                    </p>
+                    <p className="text-xs font-semibold">{projectData.date}</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 flex items-center gap-3">
+                  <Building2 className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      หน่วยงานผู้รับผิดชอบ
+                    </p>
+                    <p className="text-xs font-semibold">สถาบันดำรงราชานุภาพ</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Conditions Card */}
+            <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-3 shadow-sm">
+              <h3 className="font-semibold text-base flex items-center gap-2 text-foreground">
+                <Award className="w-4 h-4 text-amber-500" />
+                เงื่อนไขการรับใบประกาศนียบัตร
+              </h3>
+              <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside leading-relaxed">
+                <li>
+                  ต้องมีเวลาเข้าร่วมการอบรมไม่น้อยกว่าร้อยละ 80
+                  ของเวลาเรียนทั้งหมด
+                </li>
+                <li>
+                  ผ่านการประเมินผลงานและโครงงานกลุ่มตามเกณฑ์ที่สถาบันกำหนด
+                </li>
+                <li>ผ่านการทดสอบประเมินความรู้หลังการอบรม (Post-test)</li>
+              </ul>
+            </div>
           </div>
 
-          {/* Table Footer */}
-          <div className="py-3 px-4 border-t border-slate-100 dark:border-slate-800/60 text-xs text-slate-500 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/30">
-            <span>
-              แสดง {filteredRecipients.length} จากทั้งหมด {recipients.length}{" "}
-              รายชื่อ
-            </span>
-            <span>เลือกอยู่ {selectedUsers.length} รายการ</span>
+          {/* Side Stats Card */}
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
+              <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
+                สถิติการออกใบประกาศ
+              </h3>
+
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                  <p className="text-xs text-muted-foreground">
+                    ผู้มีสิทธิ์ได้รับใบประกาศ
+                  </p>
+                  <p className="text-2xl font-bold text-primary mt-1">
+                    {recipients.length} ราย
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    สถานะแม่แบบใบประกาศ
+                  </p>
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-500 flex items-center gap-1.5 mt-1">
+                    <CheckCircle2 className="w-4 h-4" /> พร้อมใช้งาน (
+                    {projectData.templatePdf || "nbt-69-gen1.pdf"})
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

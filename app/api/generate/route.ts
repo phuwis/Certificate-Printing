@@ -54,27 +54,33 @@ export async function POST(req: Request) {
 
       let customFont = null;
       if (fontBytes) {
-        customFont = await pdfDoc.embedFont(fontBytes);
+        customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
       }
 
-      // ข้อความที่ต้องการพิมพ์
-      const fullName = `${recipient.prefix || ""}${recipient.firstName} ${recipient.lastName}`;
-      const position = recipient.position || "";
-      const department = recipient.department || "";
+      // ข้อความที่ต้องการพิมพ์ (เฉพาะชื่อ - นามสกุล)
+      const rawName = `${recipient.prefix || ""}${recipient.firstName} ${recipient.lastName}`;
+
+      const fullName = rawName.normalize("NFC");
 
       if (customFont) {
-        // --- 1. จัดวางชื่อ-นามสกุล (ให้อยู่ตรงกลางหน้ากระดาษ) ---
-        const fontSizeName = 26; // ขนาดตัวอักษรของชื่อ
+        // --- จัดวางชื่อ-นามสกุล (ให้อยู่ตรงกลางหน้ากระดาษ) ---
+        const fontSizeName = 22; // ขนาดตัวอักษรของชื่อ
+
+        // ตัดสระ/วรรณยุกต์ออกชั่วคราวเฉพาะตอนคำนวณความกว้าง X เพื่อความแม่นยำในการจัดกึ่งกลาง
+        const cleanFullNameForWidth = fullName.replace(
+          /[\u0300-\u036F\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g,
+          "",
+        );
         const textWidthName = customFont.widthOfTextAtSize(
-          fullName,
+          cleanFullNameForWidth,
           fontSizeName,
         );
 
         // คำนวณพิกัด X ให้ข้อความอยู่ตรงกลางกระดาษพอดี
         const xCenterName = (width - textWidthName) / 2;
 
-        // ** ปรับค่า y ตรงนี้ตามตำแหน่งของแบบฟอร์มคุณ ** (height/2 คือตรงกลางแนวตั้ง)
-        const yName = height / 2 + 10;
+        //  ปรับค่า Y ดึงชื่อลงมาให้อยู่ตรงกลางบรรทัดว่างพอดี (สามารถปรับเปลี่ยน -35 เพิ่มลดได้ตามต้องการ)
+        const yName = height / 1.7;
 
         page.drawText(fullName, {
           x: xCenterName,
@@ -83,26 +89,6 @@ export async function POST(req: Request) {
           font: customFont,
           color: rgb(0, 0, 0), // สีดำ
         });
-
-        // --- 2. จัดวางตำแหน่ง/สังกัด (ถ้าแบบฟอร์มมีช่องให้ใส่เพิ่ม) ---
-        if (position || department) {
-          const subText = `${position} ${department}`.trim();
-          const fontSizeSub = 18;
-          const textWidthSub = customFont.widthOfTextAtSize(
-            subText,
-            fontSizeSub,
-          );
-          const xCenterSub = (width - textWidthSub) / 2;
-          const ySub = yName - 35; // อยู่ต่ำกว่าชื่อลงมา 35 พิกเซล
-
-          page.drawText(subText, {
-            x: xCenterSub,
-            y: ySub,
-            size: fontSizeSub,
-            font: customFont,
-            color: rgb(0.2, 0.2, 0.2), // สีเทาดำ
-          });
-        }
       }
 
       // คัดลอกหน้าที่เขียนข้อความเสร็จแล้วไปรวมในไฟล์ใหญ่
