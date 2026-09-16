@@ -60,10 +60,10 @@ export default function RootLayout({
                 <div className="flex flex-col">
                   {/* เพิ่ม py-0.5 และ leading-normal ป้องกันสระและวรรณยุกต์โดนตัดขอบ */}
                   <span className="text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors leading-normal py-0.5">
-                    สถาบันดำรงราชานุภาพ
+                    สถาบันดำรงราชานุภาพ สำนักงานปลัดกระทรวงมหาดไทย
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    สำนักงานปลัดกระทรวงมหาดไทย • ระบบออกใบประกาศนียบัตร
+                    กลุ่มงานพัฒนาและบริหารจัดการความรู้ (KM)
                   </span>
                 </div>
               </Link>

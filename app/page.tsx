@@ -122,24 +122,25 @@ export default function Home() {
               >
                 <div className="space-y-3.5">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted/60 font-medium border border-border/40">
-                      <Calendar className="w-3.5 h-3.5 text-primary" />
-                      {project.date}
-                    </span>
+                    <h3 className="text-lg font-bold tracking-tight text-card-foreground group-hover:text-primary transition-colors leading-snug">
+                      {project.name}
+                    </h3>
                     <div className="w-8 h-8 rounded-full border border-border/60 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 group-hover:bg-primary/5 transition-all">
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </div>
                   </div>
-
-                  <h3 className="text-lg font-bold tracking-tight text-card-foreground group-hover:text-primary transition-colors leading-snug">
-                    {project.name}
-                  </h3>
 
                   {project.description && (
                     <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                       {project.description}
                     </p>
                   )}
+                </div>
+                <div className="flex items-center justify-start mt-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted/60 font-medium border border-border/40">
+                    <Calendar className="w-3.5 h-3.5 text-primary" />
+                    {project.date}
+                  </span>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">

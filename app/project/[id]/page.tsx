@@ -19,6 +19,8 @@ import {
   Check,
   User,
   Info,
+  FileText, //  นำเข้า Icon เอกสาร
+  Download, //  นำเข้า Icon ดาวน์โหลด
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -339,9 +341,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                 <Info className="w-4 h-4 text-primary" />
                 วัตถุประสงค์ของโครงการ
               </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {projectData.objectives}
-              </p>
+              {projectData.objectives.list.map((listOfObjecttive) => (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {listOfObjecttive}
+                </p>
+              ))}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 flex items-center gap-3">
@@ -380,8 +384,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Side Stats Card */}
+          {/* Side Stats & Documents Card */}
           <div className="space-y-6">
+            {/* 1. สถิติการออกใบประกาศ */}
             <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
               <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                 สถิติการออกใบประกาศ
@@ -406,6 +411,89 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                     {projectData.templatePdf || "nbt-69-gen1.pdf"})
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* 2.  SECTION เอกสารของโครงการ (เพิ่มใหม่ด้านล่างสถิติ) */}
+            <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
+              <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                เอกสารประกอบโครงการ
+              </h3>
+
+              <div className="space-y-2.5">
+                {/* โครงสร้างหลักสูตร */}
+                <a
+                  href="/nbt-structure.pdf"
+                  download="nbt-structure.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <p className="text-xs font-medium truncate text-foreground">
+                        โครงสร้างหลักสูตร
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        โครงสร้างหลักสูตรนักบริหารงานเชิงพื้นที่ (.pdf)
+                      </p>
+                    </div>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
+                </a>
+
+                {/* ตารางฝึกอบรม */}
+                <a
+                  href="/nbt-schedule.pdf"
+                  download="nbt-schedule.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <p className="text-xs font-medium truncate text-foreground">
+                        ตารางฝึกอบรม
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        ตารางฝึกอบรมหลักสูตรนักบริหารงานเชิงพื้นที่ (.pdf)
+                      </p>
+                    </div>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
+                </a>
+
+                {/* รายชื่อผู้ผ่านการฝึกอบรม */}
+                <a
+                  href="/nbt-graduates.pdf"
+                  download="nbt-graduates.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <p className="text-xs font-medium truncate text-foreground">
+                        รายชื่อผู้ผ่านการฝึกอบรม
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        รายชื่อผู้ผ่านการฝึกอบรมหลักสูตรนักบริหารงานเชิงพื้นที่
+                        (.pdf)
+                      </p>
+                    </div>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
+                </a>
               </div>
             </div>
           </div>
