@@ -3,50 +3,6 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
-import sharp from "sharp"; // 1. import sharp เข้ามาใช้งาน
-
-/**
- * ฟังก์ชันสำหรับลบพื้นหลัง (สีดำ หรือ สีขาว) ให้กลายเป็นสีใสโปร่งแสง (Transparent PNG)
- * @param inputBuffer บัฟเฟอร์รูปภาพตั้งต้น
- * @param targetBg เลือกสีพื้นหลังที่ต้องการลบ 'black' | 'white' (ค่าเริ่มต้นคือ 'black')
- */
-async function removeBackground(
-  inputBuffer: Buffer,
-  targetBg: "black" | "white" = "black",
-): Promise<Buffer> {
-  const { data, info } = await sharp(inputBuffer)
-    .ensureAlpha() // เพิ่ม Alpha channel สำหรับความโปร่งใส
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    if (targetBg === "black") {
-      // ถ้า R, G, B ต่ำกว่า 50 (เป็นสีดำหรือดำสลัวๆ) ให้เปลี่ยนเป็นสีใส
-      if (r < 50 && g < 50 && b < 50) {
-        data[i + 3] = 0; // Alpha = 0 (โปร่งใส)
-      }
-    } else if (targetBg === "white") {
-      // ถ้า R, G, B สูงกว่า 200 (เป็นสีขาวหรือสว่างมากๆ) ให้เปลี่ยนเป็นสีใส
-      if (r > 200 && g > 200 && b > 200) {
-        data[i + 3] = 0; // Alpha = 0 (โปร่งใส)
-      }
-    }
-  }
-
-  return await sharp(data, {
-    raw: {
-      width: info.width,
-      height: info.height,
-      channels: 4,
-    },
-  })
-    .png()
-    .toBuffer();
-}
 
 export async function POST(req: Request) {
   try {
@@ -91,7 +47,6 @@ export async function POST(req: Request) {
       "images",
       "chief-signature.png",
     );
-    // ปรับเปลี่ยนเป็น director-signature.png ตามที่คุณแจ้ง
     const directorSigPath = path.join(
       process.cwd(),
       "public",
@@ -102,14 +57,12 @@ export async function POST(req: Request) {
     let chiefSigBytes: Buffer | null = null;
     let directorSigBytes: Buffer | null = null;
 
-    if (fs.existsSync(chiefSigPath))
+    if (fs.existsSync(chiefSigPath)) {
       chiefSigBytes = fs.readFileSync(chiefSigPath);
+    }
 
     if (fs.existsSync(directorSigPath)) {
-      const rawDirectorBytes = fs.readFileSync(directorSigPath);
-
-      // ลบพื้นหลังสีดำออก (หากพื้นหลังของ director-signature.png เป็นสีขาว ให้เปลี่ยน parameter ตัวหลังเป็น "white")
-      directorSigBytes = await removeBackground(rawDirectorBytes, "black");
+      directorSigBytes = fs.readFileSync(directorSigPath);
     }
 
     // 4. สร้าง PDF รวมที่จะส่งกลับไป
@@ -162,7 +115,7 @@ export async function POST(req: Request) {
       const sigHeight = 50;
       const ySignature = height * 0.22;
 
-      // ฝังลายเซ็นที่ 1: Chief (PNG) - ด้านซ้าย
+      // ฝังลายเซ็นที่ 1: Chief (PNG)
       if (chiefSigBytes) {
         const chiefImage = await pdfDoc.embedPng(chiefSigBytes);
         page.drawImage(chiefImage, {
@@ -173,7 +126,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // ฝังลายเซ็นที่ 2: Director (PNG ที่ตัดพื้นหลังออกแล้ว) - ด้านขวา
+      // ฝังลายเซ็นที่ 2: Director (PNG)
       if (directorSigBytes) {
         const directorImage = await pdfDoc.embedPng(directorSigBytes);
         page.drawImage(directorImage, {
