@@ -150,7 +150,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         <header className="space-y-4 border-b border-border/60 pb-8">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
             <GraduationCap className="w-3.5 h-3.5" />
-            <span>หลักสูตรฝึกอบรมระดับผู้บริหาร</span>
+            <span>{projectData.course}</span>
           </div>
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -337,14 +337,10 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
               <h3 className="font-semibold text-base flex items-center gap-2 text-foreground">
                 <Info className="w-4 h-4 text-primary" />
-                รายละเอียดโครงการสังเขป
+                วัตถุประสงค์ของโครงการ
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                หลักสูตรนี้จัดขึ้นโดยสถาบันดำรงราชานุภาพ กระทรวงมหาดไทย
-                มีวัตถุประสงค์เพื่อพัฒนาความรู้ ทักษะ
-                และสมรรถนะที่จำเป็นสำหรับนักบริหารงานมหาดไทย
-                มุ่งเน้นการยกระดับการบริหารจัดการภาครัฐตามหลักธรรมมาภิบาล
-                และการประยุกต์ใช้เทคโนโลยีดิจิทัลในการบริการประชาชน
+                {projectData.objectives}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
@@ -364,7 +360,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                     <p className="text-xs text-muted-foreground">
                       หน่วยงานผู้รับผิดชอบ
                     </p>
-                    <p className="text-xs font-semibold">สถาบันดำรงราชานุภาพ</p>
+                    <p className="text-xs font-semibold">{projectData.host}</p>
                   </div>
                 </div>
               </div>
@@ -377,14 +373,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                 เงื่อนไขการรับใบประกาศนียบัตร
               </h3>
               <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside leading-relaxed">
-                <li>
-                  ต้องมีเวลาเข้าร่วมการอบรมไม่น้อยกว่าร้อยละ 80
-                  ของเวลาเรียนทั้งหมด
-                </li>
-                <li>
-                  ผ่านการประเมินผลงานและโครงงานกลุ่มตามเกณฑ์ที่สถาบันกำหนด
-                </li>
-                <li>ผ่านการทดสอบประเมินความรู้หลังการอบรม (Post-test)</li>
+                {projectData.criterias.map((criteria) => (
+                  <li key={criteria.id}>{criteria.description}</li>
+                ))}
               </ul>
             </div>
           </div>

@@ -145,7 +145,7 @@ export default function Home() {
                 <div className="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
                   <span className="flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5" />
-                    สถาบันดำรงราชานุภาพ
+                    {project.host}
                   </span>
                   <span className="text-primary font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                     เข้าสู่โครงการ →

@@ -61,7 +61,7 @@ export default function RootLayout({
                     สถาบันดำรงราชานุภาพ
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    กระทรวงมหาดไทย • ระบบออกใบประกาศนียบัตร
+                    สำนักงานปลัดกระทรวงมหาดไทย • ระบบออกใบประกาศนียบัตร
                   </span>
                 </div>
               </Link>
@@ -83,8 +83,8 @@ export default function RootLayout({
 
           {/* Footer */}
           <footer className="border-t py-6 text-center text-xs text-muted-foreground relative z-10 bg-background/50">
-            © {new Date().getFullYear()} สถาบันดำรงราชานุภาพ กระทรวงมหาดไทย. All
-            rights reserved.
+            © {new Date().getFullYear()} สถาบันดำรงราชานุภาพ
+            สำนักงานปลัดกระทรวงมหาดไทย. All rights reserved.
           </footer>
         </ThemeProvider>
       </body>
