@@ -16,11 +16,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. อ่านไฟล์ PDF ต้นฉบับจากโฟลเดอร์ public
+    // 1. ตรวจสอบและอ่านไฟล์ PDF ต้นฉบับ
     const templateFileName = template || "nbt-69-gen1.pdf";
     const templatePath = path.join(process.cwd(), "public", templateFileName);
 
     if (!fs.existsSync(templatePath)) {
+      console.error(`[PDF Error] Missing Template at: ${templatePath}`);
       return NextResponse.json(
         { error: `ไม่พบไฟล์ Template: public/${templateFileName}` },
         { status: 404 },
@@ -28,19 +29,24 @@ export async function POST(req: Request) {
     }
     const templateBytes = fs.readFileSync(templatePath);
 
-    // 2. อ่านไฟล์ ฟอนต์ภาษาไทย
+    // 2. ตรวจสอบและอ่านไฟล์ ฟอนต์ภาษาไทย
     const fontPath = path.join(
       process.cwd(),
       "public",
       "fonts",
       "Charm-Regular.ttf",
     );
-    let fontBytes: Buffer | null = null;
-    if (fs.existsSync(fontPath)) {
-      fontBytes = fs.readFileSync(fontPath);
-    }
 
-    // 3. อ่านไฟล์รูปภาพลายเซ็นจาก public/images/
+    if (!fs.existsSync(fontPath)) {
+      console.error(`[PDF Error] Missing Font at: ${fontPath}`);
+      return NextResponse.json(
+        { error: `ไม่พบไฟล์ฟอนต์: public/fonts/Charm-Regular.ttf` },
+        { status: 404 },
+      );
+    }
+    const fontBytes = fs.readFileSync(fontPath);
+
+    // 3. อ่านไฟล์รูปภาพลายเซ็น
     const chiefSigPath = path.join(
       process.cwd(),
       "public",
@@ -54,68 +60,57 @@ export async function POST(req: Request) {
       "director-signature.png",
     );
 
-    let chiefSigBytes: Buffer | null = null;
-    let directorSigBytes: Buffer | null = null;
+    const chiefSigBytes = fs.existsSync(chiefSigPath)
+      ? fs.readFileSync(chiefSigPath)
+      : null;
+    const directorSigBytes = fs.existsSync(directorSigPath)
+      ? fs.readFileSync(directorSigPath)
+      : null;
 
-    if (fs.existsSync(chiefSigPath)) {
-      chiefSigBytes = fs.readFileSync(chiefSigPath);
-    }
-
-    if (fs.existsSync(directorSigPath)) {
-      directorSigBytes = fs.readFileSync(directorSigPath);
-    }
-
-    // 4. สร้าง PDF รวมที่จะส่งกลับไป
+    // 4. สร้าง PDF รวม
     const mergedPdf = await PDFDocument.create();
-    mergedPdf.registerFontkit(fontkit);
 
-    // วนลูปพิมพ์ใบประกาศรายคน
+    // วนลูปสร้าง PDF รายคน
     for (const recipient of recipients) {
       const pdfDoc = await PDFDocument.load(templateBytes);
       pdfDoc.registerFontkit(fontkit);
 
+      // ฝัง Font ลงใน pdfDoc ของคนนั้นๆ โดยเฉพาะ (ป้องกัน Cross-document Error)
+      const customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
+
       const page = pdfDoc.getPages()[0];
       const { width, height } = page.getSize();
-
-      let customFont = null;
-      if (fontBytes) {
-        customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
-      }
 
       // --- 4.1 วาดข้อความชื่อ-นามสกุล ---
       const rawName = `${recipient.prefix || ""}${recipient.firstName} ${recipient.lastName}`;
       const fullName = rawName.normalize("NFC");
 
-      if (customFont) {
-        const fontSizeName = 22;
+      const fontSizeName = 22;
+      const cleanFullNameForWidth = fullName.replace(
+        /[\u0300-\u036F\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g,
+        "",
+      );
+      const textWidthName = customFont.widthOfTextAtSize(
+        cleanFullNameForWidth,
+        fontSizeName,
+      );
 
-        const cleanFullNameForWidth = fullName.replace(
-          /[\u0300-\u036F\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g,
-          "",
-        );
-        const textWidthName = customFont.widthOfTextAtSize(
-          cleanFullNameForWidth,
-          fontSizeName,
-        );
+      const xCenterName = (width - textWidthName) / 2;
+      const yName = height / 1.7;
 
-        const xCenterName = (width - textWidthName) / 2;
-        const yName = height / 1.7;
+      page.drawText(fullName, {
+        x: xCenterName,
+        y: yName,
+        size: fontSizeName,
+        font: customFont,
+        color: rgb(0, 0, 0),
+      });
 
-        page.drawText(fullName, {
-          x: xCenterName,
-          y: yName,
-          size: fontSizeName,
-          font: customFont,
-          color: rgb(0, 0, 0),
-        });
-      }
-
-      // --- 4.2 วาดรูปลายเซ็นทั้ง 2 รูป ---
+      // --- 4.2 วาดรูปลายเซ็น ---
       const sigWidth = 100;
       const sigHeight = 50;
       const ySignature = height * 0.22;
 
-      // ฝังลายเซ็นที่ 1: Chief (PNG)
       if (chiefSigBytes) {
         const chiefImage = await pdfDoc.embedPng(chiefSigBytes);
         page.drawImage(chiefImage, {
@@ -126,7 +121,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // ฝังลายเซ็นที่ 2: Director (PNG)
       if (directorSigBytes) {
         const directorImage = await pdfDoc.embedPng(directorSigBytes);
         page.drawImage(directorImage, {
@@ -137,12 +131,12 @@ export async function POST(req: Request) {
         });
       }
 
-      // คัดลอกหน้าที่เขียนเสร็จแล้วไปรวมในไฟล์ใหญ่
+      // คัดลอกหน้าที่เสร็จแล้วไปวางใน mergedPdf
       const [copiedPage] = await mergedPdf.copyPages(pdfDoc, [0]);
       mergedPdf.addPage(copiedPage);
     }
 
-    // 5. บันทึกและส่งไฟล์ PDF กลับไป
+    // 5. ส่งไฟล์ PDF กลับ
     const pdfBytes = await mergedPdf.save();
     const buffer = Buffer.from(pdfBytes);
 
@@ -155,9 +149,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("PDF Generation Error:", error);
+    console.error("PDF Generation Internal Error:", error);
+    // ส่ง HTTP 500 พร้อม Message จริงแทนการปล่อยให้ Crash
     return NextResponse.json(
-      { error: error.message || "เกิดข้อผิดพลาดในการสร้างไฟล์ PDF" },
+      { error: error?.message || "เกิดข้อผิดพลาดภายในระบบสร้าง PDF" },
       { status: 500 },
     );
   }
