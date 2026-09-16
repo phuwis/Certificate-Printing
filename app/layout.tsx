@@ -13,6 +13,8 @@ const sarabun = Sarabun({
 });
 
 export const metadata: Metadata = {
+  icons:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8JlhtBJqp7gVwX4qm2t5OGY8xHw1TcPrJYtbIIMC3kQ3rzBkd67svfEP5&s=10",
   title: "ระบบพิมพ์ใบประกาศนียบัตร - สถาบันดำรงราชานุภาพ",
   description: "ระบบตรวจสอบสิทธิ์และออกใบประกาศนียบัตรอิเล็กทรอนิกส์",
 };
