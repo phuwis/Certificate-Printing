@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db" //env("DATABASE_URL")
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  slug           String?  @unique
+  name           String   // ชื่อโครงการ/หลักสูตร
+  course         String?  // ชื่อหลักสูตรย่อ/ประเภท
+  date           String?  // ระยะเวลาจัดอบรม
+  location       String?  // สถานที่จัดอบรม
+  description    String?  // รายละเอียดโดยสรุป
+  host           String?  // หน่วยงานผู้รับผิดชอบ
+  
+  // เปลี่ยนจาก Json? เป็น String? สำหรับ SQLite (เก็บข้อมูลเป็น JSON String)
+  objectives     String?  // เก็บ JSON String ของ { detail: "", list: [...] }
+  criterias      String?  // เก็บ JSON String ของ [{ id: "1", description: "..." }]
+  files          String?  // เก็บ JSON String ของ [{ id: "1", label: "...", fileName: "..." }]
+  
+  templatePdf    String   @default("nbt-69-gen1.pdf")
+  recipientsFile String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  graduates      Graduate[]
+  pageLogs       PageLog[]
+}
+
+model Graduate {
+  id          String   @id @default(cuid())
+  projectId   String
+  prefix      String?  // คำนำหน้า
+  firstName   String   // ชื่อ
+  lastName    String   // นามสกุล
+  position    String?  // ตำแหน่ง
+  department  String?  // หน่วยงาน/สังกัด
+  idCardLast4 String?  // เลขบัตรประชาชน 4 ตัวท้าย
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([firstName, lastName])
+}
+
+model PageLog {
+  id        String   @id @default(cuid())
+  projectId String?
+  action    String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([action])
+}

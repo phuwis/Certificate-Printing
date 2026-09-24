@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import projects from "@/data/projects.json";
-import nbtData from "@/data/nbt-69-gen1.json";
+import { useParams } from "next/navigation"; // 1. Import useParams
 import Link from "next/link";
 import {
   Search,
@@ -19,18 +18,23 @@ import {
   Check,
   User,
   Info,
-  FileText, //  นำเข้า Icon เอกสาร
-  Download, //  นำเข้า Icon ดาวน์โหลด
+  FileText,
+  Download,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-export default function ProjectDetail({ params }: { params: { id: string } }) {
-  const projectId = params.id;
-  const projectData = projects.find((p) => p.id === projectId);
-  const recipients = projectId === "nbt-69-gen1" ? nbtData : [];
+export default function ProjectDetail() {
+  const params = useParams(); // 2. ใช้ useParams ดึง params
+  const projectId = params.id as string; // ดึง id ออกมาใช้ได้เลย
+
+  const [projectData, setProjectData] = useState<any>(null);
+  const [recipients, setRecipients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -39,17 +43,48 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // ดึงข้อมูลโครงการและรายชื่อจาก API
+  useEffect(() => {
+    async function fetchProjectData() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/project/${projectId}`);
+        if (!res.ok) {
+          console.log("=============== this is res ==============");
+
+          console.log({ res });
+
+          throw new Error("ไม่พบข้อมูลโครงการ");
+        }
+        const data = await res.json();
+        setProjectData(data.project);
+        setRecipients(data.recipients || []);
+      } catch (err: any) {
+        setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (projectId) {
+      fetchProjectData();
+    }
+  }, [projectId]);
+
   // กรองรายชื่อเมื่อพิมพ์ค้นหา
   const filteredRecipients = useMemo(() => {
     if (!searchTerm.trim()) return [];
 
     return recipients.filter((r) => {
-      const fullName = `${r.prefix}${r.firstName} ${r.lastName}`;
+      const fullName = `${r.prefix || ""}${r.firstName} ${r.lastName}`;
       return (
         fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.department.toLowerCase().includes(searchTerm.toLowerCase())
+        (r.firstName &&
+          r.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (r.lastName &&
+          r.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (r.department &&
+          r.department.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     });
   }, [recipients, searchTerm]);
@@ -68,11 +103,24 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (!projectData) {
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center gap-2">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <span className="text-sm text-muted-foreground">
+          กำลังโหลดข้อมูลโครงการ...
+        </span>
+      </div>
+    );
+  }
+
+  if (error || !projectData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-2">
-          <h2 className="text-lg font-semibold">ไม่พบข้อมูลโครงการ</h2>
+          <h2 className="text-lg font-semibold">
+            {error || "ไม่พบข้อมูลโครงการ"}
+          </h2>
           <Button asChild variant="link">
             <Link href="/">← กลับหน้าหลัก</Link>
           </Button>
@@ -99,11 +147,10 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
     );
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch(`/api/project/${projectId}/pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          template: projectData.templatePdf,
           recipients: dataToPrint,
         }),
       });
@@ -114,7 +161,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `certificates-${projectData.id}.pdf`;
+      a.download = `certificates-${projectData.slug || projectData.id}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -341,11 +388,22 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                 <Info className="w-4 h-4 text-primary" />
                 วัตถุประสงค์ของโครงการ
               </h3>
-              {projectData.objectives.list.map((listOfObjecttive) => (
+              {projectData.objectives?.list ? (
+                projectData.objectives.list.map(
+                  (listOfObjective: string, idx: number) => (
+                    <p
+                      key={idx}
+                      className="text-sm text-muted-foreground leading-relaxed"
+                    >
+                      {listOfObjective}
+                    </p>
+                  ),
+                )
+              ) : (
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  {listOfObjecttive}
+                  {projectData.description || "-"}
                 </p>
-              ))}
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 flex items-center gap-3">
@@ -354,7 +412,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                     <p className="text-xs text-muted-foreground">
                       ระยะเวลาการฝึกอบรม
                     </p>
-                    <p className="text-xs font-semibold">{projectData.date}</p>
+                    <p className="text-xs font-semibold">
+                      {projectData.date || "-"}
+                    </p>
                   </div>
                 </div>
 
@@ -364,7 +424,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                     <p className="text-xs text-muted-foreground">
                       หน่วยงานผู้รับผิดชอบ
                     </p>
-                    <p className="text-xs font-semibold">{projectData.host}</p>
+                    <p className="text-xs font-semibold">
+                      {projectData.host || "-"}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -376,11 +438,21 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                 <Award className="w-4 h-4 text-amber-500" />
                 เงื่อนไขการรับใบประกาศนียบัตร
               </h3>
-              <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside leading-relaxed">
-                {projectData.criterias.map((criteria) => (
-                  <li key={criteria.id}>{criteria.description}</li>
-                ))}
-              </ul>
+              {projectData.criterias && projectData.criterias.length > 0 ? (
+                <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside leading-relaxed">
+                  {projectData.criterias.map((criteria: any, idx: number) => (
+                    <li key={criteria.id || idx}>
+                      {typeof criteria === "string"
+                        ? criteria
+                        : criteria.description}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  ไม่มีเงื่อนไขเพิ่มเติม
+                </p>
+              )}
             </div>
           </div>
 
@@ -414,7 +486,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            {/* 2.  SECTION เอกสารของโครงการ (เพิ่มใหม่ด้านล่างสถิติ) */}
+            {/* 2. SECTION เอกสารของโครงการ */}
             <div className="p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm space-y-4 shadow-sm">
               <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4 text-primary" />
@@ -422,78 +494,39 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               </h3>
 
               <div className="space-y-2.5">
-                {/* โครงสร้างหลักสูตร */}
-                <a
-                  href="/nbt-structure.pdf"
-                  download="nbt-structure.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="truncate">
-                      <p className="text-xs font-medium truncate text-foreground">
-                        โครงสร้างหลักสูตร
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        โครงสร้างหลักสูตรนักบริหารงานเชิงพื้นที่ (.pdf)
-                      </p>
-                    </div>
+                {projectData.files && projectData.files.length > 0 ? (
+                  projectData.files.map((e: any, idx: number) => (
+                    <a
+                      href={`/${e.fileName || e.url}`}
+                      download={e.fileName || e.name}
+                      key={e.id || idx}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-medium truncate text-foreground">
+                            {e.label || e.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {e.name || e.fileName}
+                          </p>
+                        </div>
+                      </div>
+                      <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
+                    </a>
+                  ))
+                ) : (
+                  <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-border/80 bg-card/50 backdrop-blur-sm space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      ปัจจุบันยังไม่มีไฟล์โครงการฯ
+                    </p>
                   </div>
-                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
-                </a>
-
-                {/* ตารางฝึกอบรม */}
-                <a
-                  href="/nbt-schedule.pdf"
-                  download="nbt-schedule.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="truncate">
-                      <p className="text-xs font-medium truncate text-foreground">
-                        ตารางฝึกอบรม
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        ตารางฝึกอบรมหลักสูตรนักบริหารงานเชิงพื้นที่ (.pdf)
-                      </p>
-                    </div>
-                  </div>
-                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
-                </a>
-
-                {/* รายชื่อผู้ผ่านการฝึกอบรม */}
-                <a
-                  href="/nbt-graduates.pdf"
-                  download="nbt-graduates.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-3 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between hover:bg-accent/60 transition-colors group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="truncate">
-                      <p className="text-xs font-medium truncate text-foreground">
-                        รายชื่อผู้ผ่านการฝึกอบรม
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        รายชื่อผู้ผ่านการฝึกอบรมหลักสูตรนักบริหารงานเชิงพื้นที่
-                        (.pdf)
-                      </p>
-                    </div>
-                  </div>
-                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
-                </a>
+                )}
               </div>
             </div>
           </div>

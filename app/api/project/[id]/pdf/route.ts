@@ -1,23 +1,67 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
+import { prisma } from "@/lib/prisma";
 
-export async function POST(req: Request) {
+// 1. กำหนด Configuration สำหรับแต่ละ Template
+interface TemplateConfig {
+  fontSizeName: number;
+  yRatio: number; // สัดส่วนตำแหน่งแนวตั้ง ( height / yRatio )
+}
+
+const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
+  "nbt-69-gen1.pdf": {
+    fontSizeName: 22,
+    yRatio: 1.7, // ค่าเดิม: height / 1.7
+  },
+  "skj-69.pdf": {
+    fontSizeName: 32,
+    yRatio: 1.55, // ปรับตำแหน่ง Y ตามรูปแบบของ skj-69.pdf (สามารถปรับแก้ตัวเลขนี้ได้ตามจริง)
+  },
+};
+
+// Default Config หากไม่ตรงกับชื่อไฟล์ด้านบน
+const DEFAULT_CONFIG = TEMPLATE_CONFIGS["nbt-69-gen1.pdf"];
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const body = await req.json();
-    const { template, recipients } = body;
+    const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+
+    // 1. ดึงข้อมูล Project จาก Database ตาม params.id
+    const project = await prisma.project.findUnique({
+      where: { id },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: `ไม่พบข้อมูลโครงการ (ID: ${id})` },
+        { status: 404 },
+      );
+    }
+
+    // 2. ดึงรายชื่อผู้รับ
+    let recipients = body.recipients;
+    if (!recipients || recipients.length === 0) {
+      recipients = await prisma.graduate.findMany({
+        where: { projectId: id },
+      });
+    }
 
     if (!recipients || recipients.length === 0) {
       return NextResponse.json(
-        { error: "กรุณาเลือกรายชื่อผู้รับใบประกาศ" },
+        { error: "ไม่พบรายชื่อผู้รับใบประกาศในโครงการนี้" },
         { status: 400 },
       );
     }
 
-    // 1. อ่านไฟล์ PDF ต้นฉบับ
-    const templateFileName = template || "nbt-69-gen1.pdf";
+    // 3. อ่านไฟล์ PDF ต้นฉบับ
+    const templateFileName = project.templatePdf || "nbt-69-gen1.pdf";
     const templatePath = path.join(process.cwd(), "public", templateFileName);
 
     if (!fs.existsSync(templatePath)) {
@@ -28,7 +72,10 @@ export async function POST(req: Request) {
     }
     const templateBytes = fs.readFileSync(templatePath);
 
-    // 2. อ่านไฟล์ ฟอนต์ภาษาไทย
+    // เลือก Config ของตำแหน่ง/ขนาดฟอนต์ ตามชื่อ Template (ถ้าไม่มีให้ใช้ DEFAULT_CONFIG)
+    const currentConfig = TEMPLATE_CONFIGS[templateFileName] || DEFAULT_CONFIG;
+
+    // 4. อ่านไฟล์ ฟอนต์ภาษาไทย
     const fontPath = path.join(
       process.cwd(),
       "public",
@@ -40,25 +87,7 @@ export async function POST(req: Request) {
       fontBytes = fs.readFileSync(fontPath);
     }
 
-    /* 
-    =========================================
-    [COMMENT] ปิดการอ่านไฟล์รูปภาพลายเซ็นชั่วคราว
-    =========================================
-    const chiefSigPath = path.join(process.cwd(), "public", "images", "chief-signature.png");
-    const directorSigPath = path.join(process.cwd(), "public", "images", "director-signature.png");
-
-    let chiefSigBytes: Buffer | null = null;
-    let directorSigBytes: Buffer | null = null;
-
-    if (fs.existsSync(chiefSigPath)) {
-      chiefSigBytes = fs.readFileSync(chiefSigPath);
-    }
-    if (fs.existsSync(directorSigPath)) {
-      directorSigBytes = fs.readFileSync(directorSigPath);
-    }
-    */
-
-    // 3. สร้าง PDF รวมที่จะส่งกลับไป
+    // 5. สร้าง PDF รวมที่จะส่งกลับไป
     const mergedPdf = await PDFDocument.create();
 
     // วนลูปพิมพ์ใบประกาศรายคน
@@ -76,12 +105,12 @@ export async function POST(req: Request) {
         customFont = await singlePdf.embedFont(fontBytes, { subset: true });
       }
 
-      // --- 3.1 วาดข้อความชื่อ-นามสกุล ---
+      // --- 5.1 วาดข้อความชื่อ-นามสกุล ---
       const rawName = `${recipient.prefix || ""}${recipient.firstName} ${recipient.lastName}`;
       const fullName = rawName.normalize("NFC");
 
       if (customFont) {
-        const fontSizeName = 22;
+        const fontSizeName = currentConfig.fontSizeName;
 
         const cleanFullNameForWidth = fullName.replace(
           /[\u0300-\u036F\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g,
@@ -93,7 +122,9 @@ export async function POST(req: Request) {
         );
 
         const xCenterName = (width - textWidthName) / 2;
-        const yName = height / 1.7;
+
+        // คำนวณ Y ตาม Config ของ Template นั้นๆ
+        const yName = height / currentConfig.yRatio;
 
         page.drawText(fullName, {
           x: xCenterName,
@@ -104,35 +135,6 @@ export async function POST(req: Request) {
         });
       }
 
-      /* 
-      =========================================
-      [COMMENT] ปิดการวาดรูปภาพลายเซ็นชั่วคราว
-      =========================================
-      const sigWidth = 100;
-      const sigHeight = 50;
-      const ySignature = height * 0.22;
-
-      if (chiefSigBytes) {
-        const chiefImage = await singlePdf.embedPng(chiefSigBytes);
-        page.drawImage(chiefImage, {
-          x: width * 0.73 - sigWidth / 2,
-          y: ySignature - 30,
-          width: sigWidth,
-          height: sigHeight,
-        });
-      }
-
-      if (directorSigBytes) {
-        const directorImage = await singlePdf.embedPng(directorSigBytes);
-        page.drawImage(directorImage, {
-          x: width * 0.28 - sigWidth / 2,
-          y: ySignature - 20,
-          width: sigWidth + 20,
-          height: sigHeight - 5,
-        });
-      }
-      */
-
       // คัดลอกหน้าที่เขียนเสร็จแล้วไปรวมในไฟล์ใหญ่
       const [copiedPage] = await mergedPdf.copyPages(singlePdf, [0]);
       mergedPdf.addPage(copiedPage);
@@ -140,7 +142,7 @@ export async function POST(req: Request) {
       singlePdf = null as any;
     }
 
-    // 4. บันทึกและส่งไฟล์ PDF กลับไป
+    // 6. บันทึกและส่งไฟล์ PDF กลับไป
     const pdfBytes = await mergedPdf.save({ useObjectStreams: false });
     const buffer = Buffer.from(pdfBytes);
 
@@ -148,7 +150,7 @@ export async function POST(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="certificates.pdf"`,
+        "Content-Disposition": `attachment; filename="certificates-${project.slug || id}.pdf"`,
         "Content-Length": buffer.length.toString(),
       },
     });

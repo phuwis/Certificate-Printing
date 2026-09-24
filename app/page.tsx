@@ -32,7 +32,6 @@ export default function Home() {
     <div className="min-h-screen text-foreground relative">
       {/* Background Decorative Blur */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-slate-200/50 via-transparent to-transparent dark:from-slate-800/30 pointer-events-none blur-3xl -z-10" />
-
       {/* ========================================================= */}
       {/* 1. STICKY TOP-16 (แปะติดใต้ Header กลาง h-16 พอดี ไม่ดิ้นไม่ทับ) */}
       {/* ========================================================= */}
@@ -107,10 +106,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      {/* ========================================================= */}
-      {/* 2. SCROLLABLE PROJECTS LIST */}
-      {/* ========================================================= */}
       <main className="max-w-6xl mx-auto px-6 py-8">
         {filteredProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -121,11 +116,13 @@ export default function Home() {
                 className="group relative flex flex-col justify-between p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm hover:bg-card hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 shadow-sm"
               >
                 <div className="space-y-3.5">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  {/* เปลี่ยนเป็น items-start และใส่ gap-4 */}
+                  <div className="flex items-start justify-between gap-4 text-xs text-muted-foreground">
                     <h3 className="text-lg font-bold tracking-tight text-card-foreground group-hover:text-primary transition-colors leading-snug">
                       {project.name}
                     </h3>
-                    <div className="w-8 h-8 rounded-full border border-border/60 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 group-hover:bg-primary/5 transition-all">
+                    {/* ใส่ shrink-0 ป้องกันวงกลมเบี้ยว/หุบ */}
+                    <div className="w-8 h-8 rounded-full border border-border/60 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 group-hover:bg-primary/5 transition-all shrink-0">
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </div>
                   </div>
@@ -165,7 +162,7 @@ export default function Home() {
             </p>
           </div>
         )}
-      </main>
+      </main>{" "}
     </div>
   );
 }

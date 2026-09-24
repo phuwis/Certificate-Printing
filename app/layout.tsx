@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
-import { Sarabun } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import { ThemeProvider } from "../components/theme-provider";
 import { ThemeToggle } from "../components/theme-toggle";
 import "./globals.css";
 
-const sarabun = Sarabun({
-  subsets: ["thai", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
+const sarabun = localFont({
+  src: [
+    {
+      path: "../public/fonts/Sarabun-Regular.ttf",
+      weight: "300",
+      style: "normal",
+    },
+  ],
   variable: "--font-sarabun",
   display: "swap",
 });
