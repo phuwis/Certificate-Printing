@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import projects from "@/data/projects.json";
 import {
   Award,
   Search,
@@ -13,12 +12,42 @@ import {
   X,
   Building2,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
+// กำหนด Type ของ Project ตาม Schema ใน Database
+interface Project {
+  id: string;
+  name: string;
+  description?: string | null;
+  date?: string | null;
+  host?: string | null;
+}
+
 export default function Home() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // ดึงข้อมูลจาก PostgreSQL ผ่าน API เมื่อเปิดหน้าเว็บ
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const res = await fetch("/api/projects", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setProjects(data);
+        }
+      } catch (err) {
+        console.error("Failed to load projects:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProjects();
+  }, []);
 
   const filteredProjects = useMemo(() => {
     return projects.filter(
@@ -26,18 +55,16 @@ export default function Home() {
         project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         project.description?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
-  }, [searchTerm]);
+  }, [projects, searchTerm]);
 
   return (
     <div className="min-h-screen text-foreground relative">
       {/* Background Decorative Blur */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-slate-200/50 via-transparent to-transparent dark:from-slate-800/30 pointer-events-none blur-3xl -z-10" />
-      {/* ========================================================= */}
-      {/* 1. STICKY TOP-16 (แปะติดใต้ Header กลาง h-16 พอดี ไม่ดิ้นไม่ทับ) */}
-      {/* ========================================================= */}
+
+      {/* 1. STICKY TOP-16 */}
       <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-md border-b border-border/80 shadow-sm transition-all">
         <div className="max-w-6xl mx-auto px-6 py-4 space-y-4">
-          {/* Header Section (ตัดหัวข้อที่ซ้ำกับ Layout ออก เหลือเฉพาะ Sub-header หรือส่วนเน้น) */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
@@ -45,11 +72,11 @@ export default function Home() {
                 <span>ระบบออกใบประกาศนียบัตรออนไลน์</span>
               </div>
 
-              {/* เพิ่ม py-1 และ leading-snug หรือ leading-normal */}
               <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground py-1 leading-normal">
                 ค้นหาโครงการฝึกอบรม
               </h1>
             </div>
+
             {/* Quick Stats Badges */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="p-2 rounded-xl bg-card border border-border/80 shadow-sm flex items-center gap-2">
@@ -106,8 +133,16 @@ export default function Home() {
           </div>
         </div>
       </div>
+
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {filteredProjects.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-3">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <p className="text-sm text-muted-foreground">
+              กำลังโหลดข้อมูลโครงการ...
+            </p>
+          </div>
+        ) : filteredProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredProjects.map((project) => (
               <Link
@@ -116,12 +151,10 @@ export default function Home() {
                 className="group relative flex flex-col justify-between p-6 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm hover:bg-card hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 shadow-sm"
               >
                 <div className="space-y-3.5">
-                  {/* เปลี่ยนเป็น items-start และใส่ gap-4 */}
                   <div className="flex items-start justify-between gap-4 text-xs text-muted-foreground">
                     <h3 className="text-lg font-bold tracking-tight text-card-foreground group-hover:text-primary transition-colors leading-snug">
                       {project.name}
                     </h3>
-                    {/* ใส่ shrink-0 ป้องกันวงกลมเบี้ยว/หุบ */}
                     <div className="w-8 h-8 rounded-full border border-border/60 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 group-hover:bg-primary/5 transition-all shrink-0">
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </div>
@@ -133,17 +166,20 @@ export default function Home() {
                     </p>
                   )}
                 </div>
-                <div className="flex items-center justify-start mt-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted/60 font-medium border border-border/40">
-                    <Calendar className="w-3.5 h-3.5 text-primary" />
-                    {project.date}
-                  </span>
-                </div>
+
+                {project.date && (
+                  <div className="flex items-center justify-start mt-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted/60 font-medium border border-border/40">
+                      <Calendar className="w-3.5 h-3.5 text-primary" />
+                      {project.date}
+                    </span>
+                  </div>
+                )}
 
                 <div className="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
                   <span className="flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5" />
-                    {project.host}
+                    {project.host || "หน่วยงานผู้จัด"}
                   </span>
                   <span className="text-primary font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                     เข้าสู่โครงการ →
@@ -162,7 +198,7 @@ export default function Home() {
             </p>
           </div>
         )}
-      </main>{" "}
+      </main>
     </div>
   );
 }
