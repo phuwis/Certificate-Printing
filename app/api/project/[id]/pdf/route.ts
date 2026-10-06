@@ -5,26 +5,6 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 
-// 1. กำหนด Configuration สำหรับแต่ละ Template
-interface TemplateConfig {
-  fontSizeName: number;
-  yRatio: number; // สัดส่วนตำแหน่งแนวตั้ง ( height / yRatio )
-}
-
-const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
-  "nbt-69-gen1.pdf": {
-    fontSizeName: 22,
-    yRatio: 1.7, // ค่าเดิม: height / 1.7
-  },
-  "skj-69.pdf": {
-    fontSizeName: 32,
-    yRatio: 1.55, // ปรับตำแหน่ง Y ตามรูปแบบของ skj-69.pdf (สามารถปรับแก้ตัวเลขนี้ได้ตามจริง)
-  },
-};
-
-// Default Config หากไม่ตรงกับชื่อไฟล์ด้านบน
-const DEFAULT_CONFIG = TEMPLATE_CONFIGS["nbt-69-gen1.pdf"];
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -33,9 +13,11 @@ export async function POST(
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
 
-    // 1. ดึงข้อมูล Project จาก Database ตาม params.id
-    const project = await prisma.project.findUnique({
-      where: { id },
+    // 1. ดึงข้อมูล Project จาก Database
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [{ id: id }, { slug: id }],
+      },
     });
 
     if (!project) {
@@ -45,11 +27,22 @@ export async function POST(
       );
     }
 
-    // 2. ดึงรายชื่อผู้รับ
+    // 2. ดึงข้อมูล pdfConfig แยก
+    const configDelegate =
+      (prisma as any).pdfConfig || (prisma as any).pdfTemplateConfig;
+    const dbConfig = configDelegate
+      ? await configDelegate.findFirst({ where: { projectId: project.id } })
+      : null;
+
+    const config = dbConfig || {
+      nameFontSize: 28,
+    };
+
+    // 3. ดึงรายชื่อผู้รับ
     let recipients = body.recipients;
     if (!recipients || recipients.length === 0) {
       recipients = await prisma.graduate.findMany({
-        where: { projectId: id },
+        where: { projectId: project.id },
       });
     }
 
@@ -60,22 +53,39 @@ export async function POST(
       );
     }
 
-    // 3. อ่านไฟล์ PDF ต้นฉบับ
-    const templateFileName = project.templatePdf || "nbt-69-gen1.pdf";
-    const templatePath = path.join(process.cwd(), "public", templateFileName);
+    // 4. อ่านไฟล์ PDF ต้นฉบับ (รองรับโครงสร้างใหม่ public/templates/)
+    const rawTemplate = project.templatePdf || "nbt-69-gen1.pdf";
+
+    // ทำความสะอาดชื่อไฟล์ ตัด prefix ต่างๆ ออกให้เหลือเฉพาะชื่อไฟล์จริง
+    const cleanFileName = rawTemplate
+      .replace(/^public\//, "")
+      .replace(/^\/public\//, "")
+      .replace(/^templates\//, "")
+      .replace(/^\/templates\//, "")
+      .replace(/^\//, "");
+
+    // 1) ลองค้นหาใน public/templates/ ก่อน
+    let templatePath = path.join(
+      process.cwd(),
+      "public",
+      "templates",
+      cleanFileName,
+    );
+
+    // 2) ถ้าไม่เจอ ให้ค้นหาจาก Root public/ (Fallback สำหรับไฟล์เก่า)
+    if (!fs.existsSync(templatePath)) {
+      templatePath = path.join(process.cwd(), "public", cleanFileName);
+    }
 
     if (!fs.existsSync(templatePath)) {
       return NextResponse.json(
-        { error: `ไม่พบไฟล์ Template: public/${templateFileName}` },
+        { error: `ไม่พบไฟล์ Template: public/templates/${cleanFileName}` },
         { status: 404 },
       );
     }
     const templateBytes = fs.readFileSync(templatePath);
 
-    // เลือก Config ของตำแหน่ง/ขนาดฟอนต์ ตามชื่อ Template (ถ้าไม่มีให้ใช้ DEFAULT_CONFIG)
-    const currentConfig = TEMPLATE_CONFIGS[templateFileName] || DEFAULT_CONFIG;
-
-    // 4. อ่านไฟล์ ฟอนต์ภาษาไทย
+    // 5. อ่านไฟล์ฟอนต์ภาษาไทย
     const fontPath = path.join(
       process.cwd(),
       "public",
@@ -87,7 +97,7 @@ export async function POST(
       fontBytes = fs.readFileSync(fontPath);
     }
 
-    // 5. สร้าง PDF รวมที่จะส่งกลับไป
+    // 6. สร้าง PDF รวมที่จะส่งกลับไป
     const mergedPdf = await PDFDocument.create();
 
     // วนลูปพิมพ์ใบประกาศรายคน
@@ -105,30 +115,35 @@ export async function POST(
         customFont = await singlePdf.embedFont(fontBytes, { subset: true });
       }
 
-      // --- 5.1 วาดข้อความชื่อ-นามสกุล ---
+      // --- 6.1 วาดข้อความชื่อ-นามสกุล ---
       const rawName = `${recipient.prefix || ""}${recipient.firstName} ${recipient.lastName}`;
       const fullName = rawName.normalize("NFC");
 
       if (customFont) {
-        const fontSizeName = currentConfig.fontSizeName;
+        const fontSizeName = config.nameFontSize || 28;
 
+        // ตัดสระ/วรรณยุกต์ออกเพื่อคำนวณความกว้างภาษาไทยถูกต้อง
         const cleanFullNameForWidth = fullName.replace(
           /[\u0300-\u036F\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g,
           "",
         );
-        const textWidthName = customFont.widthOfTextAtSize(
+        const textWidth = customFont.widthOfTextAtSize(
           cleanFullNameForWidth,
           fontSizeName,
         );
 
-        const xCenterName = (width - textWidthName) / 2;
+        // ✅ 1. จัดกึ่งกลางแนวนอน (X Center)
+        const xCenter = (width - textWidth) / 2;
 
-        // คำนวณ Y ตาม Config ของ Template นั้นๆ
-        const yName = height / currentConfig.yRatio;
+        // ✅ 2. คำนวณตำแหน่ง Y
+        const offsetY = 15;
+        const yPos = dbConfig?.nameY
+          ? height - dbConfig.nameY * (height / 600) - fontSizeName - offsetY
+          : height / 1.88;
 
         page.drawText(fullName, {
-          x: xCenterName,
-          y: yName,
+          x: xCenter,
+          y: Math.max(10, yPos),
           size: fontSizeName,
           font: customFont,
           color: rgb(0, 0, 0),
@@ -142,7 +157,7 @@ export async function POST(
       singlePdf = null as any;
     }
 
-    // 6. บันทึกและส่งไฟล์ PDF กลับไป
+    // 7. บันทึกและส่งไฟล์ PDF กลับไป
     const pdfBytes = await mergedPdf.save({ useObjectStreams: false });
     const buffer = Buffer.from(pdfBytes);
 

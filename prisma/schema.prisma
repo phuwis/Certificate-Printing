@@ -4,32 +4,91 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db" //env("DATABASE_URL")
+  url      = "file:./dev.db" // หรือ env("DATABASE_URL")
 }
 
+// ==================== 1. ระบบยืนยันตัวตน (Authentication) ====================
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String   // Hashed Password
+  role      String   @default("ADMIN") // ADMIN, EDITOR
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AdminAuditLog[]
+}
+
+// ==================== 2. ระบบจัดการไฟล์อัปโหลด (File Management) ====================
+model FileAsset {
+  id        String   @id @default(cuid())
+  projectId String?
+  fileName  String   // ชื่อไฟล์ดั้งเดิม
+  filePath  String   // Path สำหรับดึงไฟล์
+  fileType  String?  // ประเภทไฟล์
+  fileSize  Int?     // ขนาดไฟล์ (Bytes)
+  category  String?  // หมวดหมู่ไฟล์ e.g. TEMPLATE_PDF, RECIPIENTS_CSV
+  createdAt DateTime @default(now())
+
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// ==================== 3. Model หลักโครงการ ====================
 model Project {
-  id             String   @id @default(cuid())
-  slug           String?  @unique
-  name           String   // ชื่อโครงการ/หลักสูตร
-  course         String?  // ชื่อหลักสูตรย่อ/ประเภท
-  date           String?  // ระยะเวลาจัดอบรม
-  location       String?  // สถานที่จัดอบรม
-  description    String?  // รายละเอียดโดยสรุป
-  host           String?  // หน่วยงานผู้รับผิดชอบ
+  id             String        @id @default(cuid())
+  slug           String?       @unique
+  name           String        // ชื่อโครงการ/หลักสูตร
+  course         String?       // ชื่อหลักสูตรย่อ/ประเภท
+  date           String?       // ระยะเวลาจัดอบรม
+  location       String?       // สถานที่จัดอบรม
+  description    String?       // รายละเอียดโดยสรุป
+  host           String?       // หน่วยงานผู้รับผิดชอบ
   
-  // เปลี่ยนจาก Json? เป็น String? สำหรับ SQLite (เก็บข้อมูลเป็น JSON String)
-  objectives     String?  // เก็บ JSON String ของ { detail: "", list: [...] }
-  criterias      String?  // เก็บ JSON String ของ [{ id: "1", description: "..." }]
-  files          String?  // เก็บ JSON String ของ [{ id: "1", label: "...", fileName: "..." }]
+  objectives     String?       // JSON String
+  criterias      String?       // JSON String
+  files          String?       // JSON String
   
-  templatePdf    String   @default("nbt-69-gen1.pdf")
+  templatePdf    String        @default("nbt-69-gen1.pdf")
   recipientsFile String?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  // ฟิลด์ใหม่ที่เพิ่มเข้ามา
+  status         String        @default("ARCHIVE") // "PUBLISH" | "ARCHIVE"
+  active         Boolean       @default(true)
 
-  graduates      Graduate[]
-  pageLogs       PageLog[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  graduates       Graduate[]
+  pageLogs        PageLog[]
+  fileAssets      FileAsset[]
+  certificateLogs CertificateLog[]
+  pdfConfig       PdfTemplateConfig? // ความสัมพันธ์กับจุดลากวางข้อความบน PDF
+}
+
+// ==================== 3.1 Model ตั้งค่าตำแหน่งข้อความบน PDF (Drag & Drop Config) ====================
+model PdfTemplateConfig {
+  id               String   @id @default(cuid())
+  projectId        String   @unique
+  
+  // ตำแหน่งและขนาดของ ชื่อ-นามสกุล
+  nameX            Float    @default(0)    // พิกัด X
+  nameY            Float    @default(0)    // พิกัด Y
+  nameFontSize     Int      @default(24)   // ขนาดฟอนต์
+  nameColor        String   @default("#000000") // สีฟอนต์
+
+  // ตำแหน่งและขนาดของ ตำแหน่ง/สังกัด (เผื่อมีบน PDF)
+  positionX        Float?
+  positionY        Float?
+  positionFontSize Int?     @default(16)
+  positionColor    String?  @default("#000000")
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model Graduate {
@@ -43,22 +102,60 @@ model Graduate {
   idCardLast4 String?  // เลขบัตรประชาชน 4 ตัวท้าย
   createdAt   DateTime @default(now())
 
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  certificateLogs CertificateLog[]
 
   @@index([projectId])
   @@index([firstName, lastName])
 }
 
+// ==================== 4. ระบบบันทึกการใช้งาน (Analytics & Audit Logs) ====================
 model PageLog {
-  id        String   @id @default(cuid())
-  projectId String?
-  action    String
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  projectId   String?
+  action      String   // "VIEW_PROJECT", "SEARCH_CERTIFICATE", "VERIFY_QR"
+  searchQuery String?
+  ipAddress   String?
+  userAgent   String?
+  referrer    String?
+  createdAt   DateTime @default(now())
 
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([action])
+  @@index([createdAt])
+}
+
+model CertificateLog {
+  id           String   @id @default(cuid())
+  projectId    String
+  graduateId   String
+  action       String   // "GENERATE_PDF", "PREVIEW", "DOWNLOAD"
+  templateUsed String   // "nbt-69-gen1.pdf", "skj-69.pdf"
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  graduate     Graduate @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([graduateId])
+  @@index([createdAt])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String   // "CREATE_PROJECT", "UPDATE_JSON", "UPLOAD_RECIPIENTS"
+  targetType String   // "Project", "Graduate", "FileAsset"
+  targetId   String?
+  details    String?  // JSON String ของข้อมูลที่มีการเปลี่ยนแปลง
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }

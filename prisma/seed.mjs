@@ -1,6 +1,7 @@
-const fs = require("fs");
-const path = require("path");
-const { PrismaClient } = require("@prisma/client");
+import fs from "fs";
+import path from "path";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -20,9 +21,32 @@ function readJsonFile(filePath) {
 async function main() {
   console.log("🌱 Starting Database Seeding...");
 
+  // ==================== 1. สร้าง Admin User ====================
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const rawPassword = process.env.ADMIN_DEFAULT_PASSWORD;
+
+  // Hash รหัสผ่านก่อนเซฟ
+  const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+  const admin = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {},
+    create: {
+      email: adminEmail,
+      name: "System Admin",
+      password: hashedPassword,
+      role: "ADMIN",
+    },
+  });
+
+  console.log("✅ Admin user ready:");
+  console.log(`   Email: ${admin.email}`);
+
+  // ==================== 2. อ่านข้อมูล Projects และ Graduates ====================
   const dataDir = path.join(process.cwd(), "data");
 
-  // 1. อ่านข้อมูล projects.json
+  // อ่านข้อมูล projects.json
   const projectsPath = path.join(dataDir, "projects.json");
   const projectsData = readJsonFile(projectsPath);
 
@@ -31,7 +55,7 @@ async function main() {
     return;
   }
 
-  // 2. ลูปบันทึกข้อมูล Project
+  // ลูปบันทึกข้อมูล Project
   for (const proj of projectsData) {
     console.log(`\n📌 Processing Project: ${proj.name} (${proj.id})`);
 
@@ -59,13 +83,12 @@ async function main() {
       create: projectRecord,
     });
 
-    // 3. อ่านไฟล์รายชื่อผู้เข้าร่วมอบรม (recipientsFile) ถ้ามีระบุไว้
-    // 3. อ่านไฟล์รายชื่อผู้เข้าร่วมอบรม (recipientsFile) ถ้ามีระบุไว้
+    // อ่านไฟล์รายชื่อผู้เข้าร่วมอบรม (recipientsFile) ถ้ามีระบุไว้
     if (proj.recipientsFile) {
       const recipientsPath = path.join(dataDir, proj.recipientsFile);
       const recipientsData = readJsonFile(recipientsPath);
 
-      //  ลบข้อมูล Graduate เก่าของโครงการนี้ออกเสมอ (ไม่ว่าไฟล์ใหม่จะมีข้อมูลหรือเป็น [] ว่างเปล่า)
+      // ลบข้อมูล Graduate เก่าของโครงการนี้ออกเสมอ
       await prisma.graduate.deleteMany({
         where: { projectId: savedProject.id },
       });

@@ -20,6 +20,17 @@ export interface ProjectFileType {
   fileName: string;
 }
 
+// โครงสร้างข้อมูลการตั้งค่าพิกัดและขนาดฟอนต์บน PDF
+export interface PdfConfigType {
+  id?: string;
+  projectId?: string;
+  nameX: number;
+  nameY: number;
+  nameFontSize: number;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
 // โครงสร้างข้อมูล Graduate / Recipient
 export interface Recipient {
   id: string;
@@ -48,6 +59,7 @@ export interface FormattedProject {
   files: ProjectFileType[];
   templatePdf: string;
   recipientsFile: string | null;
+  pdfConfig?: PdfConfigType | null; // ✅ เพิ่มรองรับ pdfConfig จาก DB
   createdAt: Date | string;
   updatedAt: Date | string;
 }

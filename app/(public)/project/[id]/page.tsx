@@ -497,7 +497,7 @@ export default function ProjectDetail() {
                 {projectData.files && projectData.files.length > 0 ? (
                   projectData.files.map((e: any, idx: number) => (
                     <a
-                      href={`/${e.fileName || e.url}`}
+                      href={`/uploads/${e.fileName || e.url}`}
                       download={e.fileName || e.name}
                       key={e.id || idx}
                       target="_blank"
